@@ -1,0 +1,606 @@
+//*fork:
+
+#include <stdio.h>
+#include <unistd.h>
+#include <iostream>
+using namespace std;
+
+
+int main()
+{
+
+	int pid=fork();//c1
+	
+	if(pid>0)
+	{
+		cout<<"Parent "<<getpid()<<endl;
+
+		pid=fork();//c2
+
+		if(pid==0)
+		{
+			cout<<"Child "<<getpid()<<endl;
+
+			sleep(3);
+
+			pid=fork();
+
+			if(pid==0)
+			{
+				// 
+				cout<<"Grandchild "<<getpid()<<endl;
+			}
+
+			else
+			{
+				pid = fork();
+
+				if(pid==0)
+				{
+					cout<<"Grandchild "<<getpid()<<endl;
+				}
+			}
+
+		}
+	}
+
+	else if(pid==0)
+	{
+
+		sleep(1);
+		// child
+		cout<<"Child "<<getpid()<<endl;
+
+		pid = fork();
+
+		if(pid==0)
+		{
+			// grandchild
+			cout<<"Grandchild "<<getpid()<<endl;
+		}
+
+		else
+		{
+		
+			// grandchild
+			pid=fork();
+			if(pid==0)
+				cout<<"Grandchild "<<getpid()<<endl;
+		}
+
+	}
+
+}
+
+//*checksum
+
+#include <bits/stdc++.h>
+
+using namespace std;
+
+int arr[10];
+
+int main(){
+
+
+	for(int i=0;i<10;i++)
+		cin >> hex >> arr[i];
+
+	int sum = 0;
+
+	for(int i=0;i<10;i++){
+		if(i==5) continue;
+		sum += arr[i];
+		if(sum/(1<<16)){
+			sum %= 1<<16;
+			sum++;
+			sum %= 1<<16;
+		}
+	}
+	sum = ~sum;
+	sum += 1<<16;
+
+	cout << hex << sum;
+
+	return 0;
+}
+
+//*rpc
+
+struct student {
+	char str[50];
+};
+
+program MARKS_PROG {
+	version MARKS_VERS {
+		int ADD(student) = 1;
+	} = 1;
+} = 0x23451111;
+
+//*webclient
+
+#include <iostream>
+#include <fstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+using namespace std;
+void error(const char *msg)
+{
+	perror(msg);
+	exit(0);
+}
+
+int main(int argc, char *argv[])
+{
+	string url = string(argv[1]);
+	cout << url << endl;
+	size_t ind = url.find("://")+3;
+	size_t ind2 = url.find("/",ind);
+	string host_name = url.substr(ind,ind2-ind);
+	string path = url.substr(ind2);
+	// cout << ind << " " << ind2 << " " << host_name << " " << path << endl;
+	// return 0;
+	int sockfd, portno, n;
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
+
+	char buffer[1024];
+	buffer[1023]=0;
+	// if (argc < 3) {
+	// 	fprintf(stderr,"Usage: %s HOSTNAME PORT\n", argv[0]);
+	// 	exit(0);
+	// }
+	// portno = atoi(argv[2]);
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	struct timeval tv;
+
+	tv.tv_sec = 2;  /* 30 Secs Timeout */
+	tv.tv_usec = 0;  // Not init'ing this can cause strange errors
+
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+	if (sockfd < 0) 
+		error("ERROR opening socket");
+	server = gethostbyname(host_name.c_str());
+	if (server == NULL) {
+		fprintf(stderr,"ERROR, no such host\n");
+		exit(0);
+	}
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	bcopy((char *)server->h_addr, 
+		(char *)&serv_addr.sin_addr.s_addr,
+		server->h_length);
+	serv_addr.sin_port = htons(80);
+	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
+		error("ERROR connecting");
+	
+	bzero(buffer,1024);
+	sprintf(buffer,"GET %s HTTP/1.0\r\nHOST: %s\r\n\r\n", path.c_str(), host_name.c_str());
+	cout << buffer << endl;
+
+    //fgets(buffer,255,stdin);
+	n = write(sockfd,buffer,strlen(buffer));
+	if (n < 0) 
+		error("ERROR writing to socket");
+	bzero(buffer,256);
+	//ofstream myfile;
+	FILE *myfile = fopen("/tmp/out", "w+");
+	bool header_ended = false;
+	char * ptr;
+	string headers="";
+	while((n = read(sockfd,buffer,1023))>0){
+
+		if(header_ended == false && (ptr = strstr(buffer, "\r\n\r\n")) != NULL) {
+			*(ptr)=0;
+			headers+=string(buffer);
+			ptr = ptr + 4;
+			headers+=
+			fwrite(ptr, sizeof(char), n - (ptr - buffer) , myfile);
+			header_ended = true;
+		}else if(header_ended==false){
+			headers+=string(buffer);
+		}
+
+		else if(header_ended == true) {
+			fwrite(buffer, sizeof(char), n, myfile);
+		}
+
+
+		
+	}
+	cout << "Headers:\n" << 	headers << endl << endl;
+	size_t ii = headers.find("Content-Type") + 14 ;
+	size_t ij = headers.find("\r",ii)  ;
+	string type =  headers.substr(ii,ij-ii) ;
+	cout << "Content Type is " << type << endl;
+	fclose(myfile);
+
+	close(sockfd);
+	if(fork()){
+		string abc="ls";
+		execl("/bin/mime", "mime", "/tmp/out", type.c_str(), NULL);
+	}
+	return 0;
+}
+
+//*cache
+
+#include <iostream>
+#include <fstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <dirent.h>
+
+#include <stdexcept>
+#include <sstream>
+#include <iomanip>
+#include <string>
+#include <cstdint>
+
+using namespace std;
+
+string string_to_hex(const string& in) {
+    stringstream ss;
+
+    ss << hex << setfill('0');
+    for (size_t i = 0; in.length() > i; ++i) {
+        ss << setw(2) << static_cast<unsigned int>(static_cast<unsigned char>(in[i]));
+    }
+
+    return ss.str(); 
+}
+
+string hex_to_string(const string& in) {
+    string output;
+
+    if ((in.length() % 2) != 0) {
+        throw runtime_error("String is not valid length ...");
+    }
+
+    size_t cnt = in.length() / 2;
+
+    for (size_t i = 0; cnt > i; ++i) {
+        uint32_t s = 0;
+        stringstream ss;
+        ss << hex << in.substr(i * 2, 2);
+        ss >> s;
+
+        output.push_back(static_cast<unsigned char>(s));
+    }
+
+    return output;
+}void error(const char *msg)
+{
+	perror(msg);
+	exit(0);
+}
+
+void free_cache(){
+	DIR *dp;
+	int i=-2;
+	struct dirent *ep;     
+	dp = opendir ("/tmp/webcache");
+
+	if (dp != NULL){
+		while (ep = readdir (dp))
+		  i++;
+		(void) closedir (dp);
+	}
+	else
+	perror ("Couldn't open the directory");
+
+
+	
+	cout << "Total files in cache: " << i << endl;
+	if(i==3){
+		cout << "Cache full. Deleting oldest file.\n";
+		system("rm /tmp/webcache/`ls --sort=time /tmp/webcache/|tail -n 1`");
+	}
+}
+
+bool exists_in_cache(string & file_name){
+	if (ifstream(file_name))
+	{
+     	return true;
+	}
+	return false;
+}
+
+
+
+// http://google.com/sef/sfe.e
+int main(int argc, char *argv[])
+{
+	// system("ls");
+	// char* rr = malloc(20);
+	// cout << MD5("FS",2,rr);
+	// cout << rr;
+	string url = string(argv[1]);
+	string type;
+	string file_name = "/tmp/webcache/" + string_to_hex(url);
+	if(!exists_in_cache(file_name)){
+		cout << "Doesn't exist in cache.\n";
+		free_cache();
+		// cout << "SF" << endl;
+		cout << endl << url << endl;
+		size_t ind = url.find("://")+3;
+		size_t ind2 = url.find("/",ind);
+		string host_name = url.substr(ind,ind2-ind);
+		string path = url.substr(ind2);
+		// cout << ind << " " << ind2 << " " << host_name << " " << path << endl;
+		// return 0;
+		int sockfd, portno, n;
+		struct sockaddr_in serv_addr;
+		struct hostent *server;
+
+		char buffer[1024];
+		buffer[1023]=0;
+		// if (argc < 3) {
+		// 	fprintf(stderr,"Usage: %s HOSTNAME PORT\n", argv[0]);
+		// 	exit(0);
+		// }
+		// portno = atoi(argv[2]);
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		struct timeval tv;
+
+		tv.tv_sec = 2;  /* 2 Secs Timeout */
+		tv.tv_usec = 0;  // Not init'ing this can cause strange errors
+
+		setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+		if (sockfd < 0) 
+			error("ERROR opening socket");
+		server = gethostbyname(host_name.c_str());
+		if (server == NULL) {
+			fprintf(stderr,"ERROR, no such host\n");
+			exit(0);
+		}
+		bzero((char *) &serv_addr, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		bcopy((char *)server->h_addr, 
+			(char *)&serv_addr.sin_addr.s_addr,
+			server->h_length);
+		serv_addr.sin_port = htons(80);
+		if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
+			error("ERROR connecting");
+		
+		bzero(buffer,1024);
+		sprintf(buffer,"GET %s HTTP/1.0\r\nHOST: %s\r\n\r\n", path.c_str(), host_name.c_str());
+		cout << buffer << endl;
+
+	    //fgets(buffer,255,stdin);
+		n = write(sockfd,buffer,strlen(buffer));
+		if (n < 0) 
+			error("ERROR writing to socket");
+		bzero(buffer,256);
+		//ofstream myfile;
+
+		FILE *myfile = fopen(file_name.c_str(), "w+");
+		bool header_ended = false;
+		char * ptr;
+		string headers="";
+		while((n = read(sockfd,buffer,1023))>0){
+
+			if(header_ended == false && (ptr = strstr(buffer, "\r\n\r\n")) != NULL) {
+				*(ptr)=0;
+				headers+=string(buffer);
+				ptr = ptr + 4;
+				//headers+=
+				fwrite(ptr, sizeof(char), n - (ptr - buffer) , myfile);
+				header_ended = true;
+			}else if(header_ended==false){
+				headers+=string(buffer);
+			}
+
+			else if(header_ended == true) {
+				fwrite(buffer, sizeof(char), n, myfile);
+			}
+
+
+			
+		}
+		cout << "Headers:\n" << headers << endl << endl;
+		size_t ii = headers.find("Content-Type") + 14 ;
+		size_t ij = headers.find("\r",ii)  ;
+		type =  headers.substr(ii,ij-ii) ;
+		cout << "Content Type is " << type << endl;
+		fclose(myfile);
+
+		close(sockfd);
+	}else{
+		cout << "File found in cache.\n";
+	}
+
+	if(fork()){
+		string abc="ls";
+		execl("/bin/mime", "mime", file_name.c_str(), type.c_str(), NULL);
+	}
+	return 0;
+}
+
+//*rsa
+
+#include <bits/stdc++.h>
+
+using namespace std;
+#define ll long long
+
+long long p,q,phi,n,e,d;
+ll enc[500];
+
+ll gcd(ll a,ll b)
+{
+	if(a%b==0)
+		return b;
+
+	return gcd(b,a%b);
+}
+
+ll public_key(){
+	for(ll i=2;i<phi;i++){
+		if(gcd(i,phi)==1)
+			return i;
+	}
+	return -1;
+}
+
+ll private_key(){
+	for(ll i=0;i<phi;i++){
+		ll temp = phi*i+1;
+		if(temp%e==0 && gcd(phi,temp/e)==1)
+			return temp/e;
+	}
+	return -1;
+}
+
+ll modular_exp(ll base,ll exp,ll mod){
+
+	ll temp = base;
+	ll res = 1;
+	while(exp>0){
+		if(exp%2==1){
+			res *= temp;
+			res %= mod;
+		}
+		temp*=temp;
+		temp %= mod;
+		exp/=2;
+	}
+	return res;
+
+}
+
+void encrypt(string message){
+
+	for(int i=0;i<message.length();i++){
+		ll tmp = (ll)message[i];
+		enc[i] = modular_exp(tmp,e,n);
+		cout <<enc[i];
+	}
+	cout<<endl;
+	
+}
+
+string decrypt(ll len){
+	string message = "";
+	for(int i=0;i<len;i++){
+		ll tmp = enc[i];
+		tmp = modular_exp(tmp,d,n);
+		char ch = tmp;
+		message += ch;
+	}
+	return message;
+
+}
+
+int main(){
+
+	ll p,q;
+	string message;
+
+	cin >> message;
+
+	cin >> p >> q;
+
+	n = p*q;
+	phi = (p-1)*(q-1);
+
+	e = public_key();
+	d = private_key();
+
+	encrypt(message);
+	ll len = message.length();
+	cout << decrypt(len)<<endl;
+
+	return 0;
+}
+
+//*generator
+
+#include <bits/stdc++.h>
+
+using namespace std;
+
+
+
+string remainder(string data,string polynomial){
+
+	string rem = "";
+	int k = polynomial.length();
+
+	for(int i=0;i<=data.length()-polynomial.length();i++){
+		
+		if(data[i]=='0'){
+			
+			continue;
+		}
+		
+
+		for(int j=0;j<polynomial.length();j++){
+			data[i+j] = data[i+j]==polynomial[j] ? '0' : '1';
+		}
+	}
+
+	for(int i=1;i<k;i++){
+		rem += data[data.length()-k+i];
+	}
+	return rem;
+
+}
+
+int main(){
+
+	string data,polynomial;
+
+	cin >> data >> polynomial;
+
+	int k = polynomial.length();
+
+	string mdata = data;
+
+	for(int i=1;i<k;i++)
+		mdata += '0';
+	string rem = remainder(mdata,polynomial);
+
+	mdata = data;
+	mdata += rem;
+	
+	cout << mdata<<endl;
+	cout << polynomial<<endl;
+
+	return 0;
+}
+
+//*alter
+
+#include <bits/stdc++.h>
+
+using namespace std;
+
+int main(int argc,char* argv[]){
+
+	string data,polynomial;
+	cin >> data >> polynomial;
+	int alter = atoi(argv[1]);
+	
+	data[alter] = data[alter]=='1' ? '0' : '1';
+
+	cout << data << endl;
+	cout << polynomial << endl;
+
+	return 0;
+}
